@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>BonkRoyale</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    user-select:none;-webkit-user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+  body{display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center,#1c2033 0%,#06070b 75%)}
+  #game{position:relative;overflow:hidden;background:#0f1a2a;box-shadow:0 0 70px rgba(0,0,0,.85);border-radius:8px}
+  #game canvas{display:block}
+  #ui{position:absolute;inset:0;pointer-events:none}
+  button{font-family:inherit}
+
+  /* =================== CARTES (style commun) =================== */
+  .card{position:relative;aspect-ratio:4/5;border-radius:.5em;border:3px solid #6b7f99;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;
+    box-shadow:0 3px 0 #000;transition:transform .12s,filter .15s,border-color .12s}
+  .card.r-common{border-color:#8fa3bd}
+  .card.r-rare{border-color:#ff9a2e}
+  .card.r-epic{border-color:#c04ef0}
+  .card .icon{font-size:2em;line-height:1.1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+  .card .name{font-size:.62em;font-weight:800;text-shadow:0 1px 2px #000;margin-top:.15em;text-align:center;line-height:1.1;padding:0 .15em}
+  .card .cost{position:absolute;top:-.45em;left:-.45em;width:1.6em;height:1.6em;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#f5a8ff,#b01ee0 60%,#5c0a7a);border:2px solid #2a0538;
+    display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.85em;text-shadow:0 1px 1px #000}
+  .card.sel{transform:translateY(-.55em) scale(1.04);border-color:#ffe14a;box-shadow:0 0 12px #ffe14a,0 3px 0 #000}
+  .card.off{filter:grayscale(.85) brightness(.6)}
+  .card.picked{border-color:#ffe14a;box-shadow:0 0 14px #ffe14a,0 3px 0 #000;transform:scale(1.05)}
+  .card.wiggle{animation:wiggle .35s ease-in-out infinite}
+  @keyframes wiggle{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+
+  /* =================== HUD DE COMBAT =================== */
+  #hud{position:absolute;inset:0;pointer-events:none}
+  #game.in-menu #hud{display:none}
+  #topbar{position:absolute;top:.5em;left:.5em;right:.5em;display:flex;justify-content:space-between;align-items:flex-start}
+  .crowns{background:rgba(0,0,0,.6);padding:.2em .7em;border-radius:1em;color:#fff;font-weight:800;font-size:1.05em;
+    display:flex;gap:.35em;align-items:center}
+  .crowns.enemy{border:2px solid #ff4a4a}
+  .crowns.player{border:2px solid #4aa3ff}
+  .crowns small{font-size:.6em;opacity:.8;font-weight:700}
+  #timer{background:rgba(0,0,0,.65);color:#fff;font-weight:900;padding:.15em .8em .2em;border-radius:.6em;font-size:1.25em;text-align:center;min-width:4.2em}
+  #timer small{display:block;font-size:.45em;color:#ffd84a;letter-spacing:.05em;height:1.1em}
+  .tlabel{position:absolute;transform:translate(-50%,-100%);font-size:.62em;font-weight:900;color:#fff;
+    text-shadow:0 1px 2px #000,0 0 3px #000;white-space:nowrap}
+
+  #bottom{position:absolute;left:0;right:0;bottom:0;padding:.55em .5em .6em;pointer-events:auto;
+    background:linear-gradient(to top,rgba(28,16,6,.97),rgba(50,32,12,.9));border-top:3px solid #6b4518}
+  #hand{display:grid;grid-template-columns:.75fr repeat(4,1fr);gap:.4em;align-items:end}
+  #nextWrap{display:flex;flex-direction:column;align-items:center;gap:.15em}
+  #nextWrap small{color:#e8d3b0;font-size:.55em;font-weight:800;letter-spacing:.05em}
+  #nextWrap .card{width:100%;font-size:.75em;cursor:default;filter:brightness(.85)}
+  #elixirWrap{display:flex;align-items:center;gap:.4em;margin-top:.5em}
+  #elixirDrop{width:2em;height:2em;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;flex:none;
+    background:radial-gradient(circle at 35% 30%,#f5a8ff,#b01ee0 60%,#5c0a7a);border:2px solid #2a0538;
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:1em;text-shadow:0 1px 2px #000}
+  #elixirBar{flex:1;height:1.15em;background:#2a1030;border-radius:.6em;overflow:hidden;position:relative;border:2px solid #000}
+  #elixirFill{height:100%;width:50%;background:linear-gradient(#f08bff,#a320d6 60%,#7a10a8)}
+  #elixirTicks{position:absolute;inset:0;background:repeating-linear-gradient(to right,transparent 0,transparent calc(10% - 2px),rgba(0,0,0,.55) calc(10% - 2px),rgba(0,0,0,.55) 10%)}
+  #toast{position:absolute;left:50%;bottom:10.2em;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#ffd84a;
+    font-weight:800;font-size:.8em;padding:.35em .9em;border-radius:1em;opacity:0;transition:opacity .2s;white-space:nowrap}
+  #toast.show{opacity:1}
+
+  /* =================== MENU PRINCIPAL =================== */
+  #menu{position:absolute;inset:0;display:none;flex-direction:column;pointer-events:auto;color:#fff}
+  #game.in-menu #menu{display:flex}
+  .m-top{display:flex;justify-content:space-between;align-items:center;padding:.5em .6em;
+    background:linear-gradient(#22488a,#14305f);border-bottom:3px solid #0b1d3d;box-shadow:0 3px 8px rgba(0,0,0,.4)}
+  .profile{display:flex;gap:.45em;align-items:center}
+  .lvl{width:2.1em;height:2.3em;background:linear-gradient(#5aa9ff,#1f5fc2);display:flex;align-items:center;justify-content:center;
+    font-weight:900;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);text-shadow:0 1px 2px #000}
+  .profile b{display:block;font-size:.9em}
+  .profile small{font-size:.75em;color:#ffd84a;font-weight:800}
+  .res{display:flex;gap:.35em}
+  .res span{background:rgba(0,0,0,.45);padding:.2em .55em;border-radius:1em;font-size:.78em;font-weight:800;border:1px solid rgba(255,255,255,.15)}
+
+  .tab{flex:1;display:none;flex-direction:column;min-height:0}
+  .tab.active{display:flex}
+
+  #tabPlay{justify-content:space-between;align-items:center;padding:.9em .6em .8em;
+    background:linear-gradient(to bottom,rgba(10,25,55,.55),rgba(10,25,55,0) 25%,rgba(10,25,55,0) 55%,rgba(10,25,55,.85))}
+  .logo{width:58%;max-width:14em;height:auto;display:block;filter:drop-shadow(0 6px 10px rgba(0,0,0,.6))}
+  .top-play{width:100%;display:flex;flex-direction:column;align-items:center;gap:.6em}
+  .arena-name{text-align:center;background:rgba(0,0,0,.5);padding:.4em 1.3em;border-radius:.7em;font-size:.72em;
+    letter-spacing:.1em;color:#cfe3ff;border:2px solid rgba(255,216,74,.4)}
+  .arena-name b{display:block;font-size:1.45em;color:#ffd84a;letter-spacing:.02em;text-shadow:0 2px 0 #000}
+  .play-zone{width:100%;display:flex;flex-direction:column;align-items:center;gap:.7em}
+  .deck-title{font-size:.7em;font-weight:800;letter-spacing:.1em;color:#cfe3ff}
+  #deckMini{display:grid;grid-template-columns:repeat(8,1fr);gap:.25em;background:rgba(0,0,0,.5);padding:.4em;border-radius:.6em;width:100%;cursor:pointer}
+  #deckMini .card{font-size:.55em;border-width:2px;box-shadow:none}
+  #deckMini .card .name{display:none}
+  #btnBattle{font-size:1.65em;font-weight:900;color:#5a3a00;padding:.4em 2.3em;border-radius:.5em;border:3px solid #7a4b00;
+    background:linear-gradient(#fff0a0,#ffc93a 50%,#f29a10);box-shadow:0 5px 0 #7a4b00,inset 0 2px 0 rgba(255,255,255,.7);
+    text-shadow:0 1px 0 rgba(255,255,255,.6);cursor:pointer;animation:pulse 1.6s ease-in-out infinite}
+  #btnBattle:active{transform:translateY(4px);box-shadow:0 1px 0 #7a4b00;animation:none}
+  @keyframes pulse{50%{transform:scale(1.05)}}
+  .record{font-size:.72em;color:#cfe3ff;font-weight:700}
+
+  #tabDeck{background:linear-gradient(#2d5cab,#1b3a74);overflow-y:auto;padding:.7em .7em 1em;gap:.55em}
+  .sec-head{display:flex;justify-content:space-between;align-items:baseline}
+  .sec-head h2{font-size:1em;font-weight:900;letter-spacing:.04em;text-shadow:0 2px 0 #0b1d3d}
+  .sec-head span{font-size:.75em;font-weight:800;color:#f5c4ff}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.55em;background:rgba(0,0,0,.25);padding:.7em .6em;border-radius:.6em}
+  .grid.empty::after{content:'Toutes vos cartes sont dans le deck';grid-column:1/-1;text-align:center;font-size:.75em;opacity:.7;padding:.6em}
+  #cardInfo{background:rgba(0,0,0,.35);border-radius:.6em;padding:.55em .7em;min-height:4.4em;font-size:.82em}
+  #cardInfo .hint{opacity:.75;text-align:center;padding-top:.9em}
+  #cardInfo .head{display:flex;justify-content:space-between;align-items:center;gap:.5em}
+  #cardInfo .head b{font-size:1.1em}
+  #cardInfo .rar{font-size:.7em;font-weight:900;padding:.1em .5em;border-radius:.5em;margin-left:.4em}
+  .rar.r-common{background:#8fa3bd;color:#14243a}.rar.r-rare{background:#ff9a2e;color:#3d1e00}.rar.r-epic{background:#c04ef0}
+  #cardInfo p{opacity:.85;margin:.25em 0 .4em;font-size:.9em}
+  #cardInfo .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.3em}
+  #cardInfo .stats div{background:rgba(255,255,255,.08);border-radius:.4em;padding:.2em .4em;font-size:.8em}
+  #cardInfo .stats small{display:block;opacity:.65;font-size:.85em}
+  .btn{border:none;color:#fff;font-weight:900;padding:.4em 1em;border-radius:.45em;cursor:pointer;font-size:.9em;text-shadow:0 1px 1px #000}
+  .btn.green{background:linear-gradient(#6fe06f,#2f9e2f);box-shadow:0 3px 0 #0b3a0b}
+  .btn.grey{background:linear-gradient(#8a96a8,#56627a);box-shadow:0 3px 0 #252c3a}
+
+  .m-tabs{display:flex;background:linear-gradient(#1a3566,#0f2347);border-top:3px solid #0b1d3d;padding:0 .4em}
+  .m-tabs button{flex:1;border:none;background:transparent;color:#8fa6cc;font-weight:900;font-size:1.35em;padding:.35em 0 .45em;
+    display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:transform .15s}
+  .m-tabs button span{font-size:.5em;letter-spacing:.12em;margin-top:.1em}
+  .m-tabs button.active{background:linear-gradient(#5b97ea,#2a5ab0);color:#fff;transform:translateY(-.3em);
+    border-radius:.55em .55em 0 0;box-shadow:0 -3px 0 #0b1d3d,inset 0 2px 0 rgba(255,255,255,.35)}
+
+  /* =================== OVERLAY FIN DE PARTIE =================== */
+  #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8em;
+    background:rgba(5,8,16,.75);pointer-events:auto;text-align:center;color:#fff;padding:1.5em}
+  #overlay.hidden{display:none}
+  #overlay h1{font-size:2.2em;font-weight:900;letter-spacing:.02em;text-shadow:0 3px 0 #000,0 0 18px rgba(255,210,60,.6);color:#ffd84a}
+  #overlay p{font-size:.95em;opacity:.95;line-height:1.5;max-width:20em}
+  #overlay .trophy{font-size:1.2em;font-weight:900}
+  #overlay button{font-size:1.1em;font-weight:900;color:#fff;padding:.55em 1.6em;border-radius:.6em;border:3px solid #0b3a0b;
+    background:linear-gradient(#6fe06f,#2f9e2f);box-shadow:0 4px 0 #0b3a0b;cursor:pointer;text-shadow:0 1px 2px #000}
+  #overlay button:active{transform:translateY(3px);box-shadow:0 1px 0 #0b3a0b}
+</style>
+</head>
+<body>
+<div id="game" class="in-menu">
+  <div id="ui">
+
+    <!-- ============ HUD DE COMBAT ============ -->
+    <div id="hud">
+      <div id="topbar">
+        <div class="crowns enemy"><small>IA</small>👑<b id="crEnemy">0</b></div>
+        <div id="timer"><span id="timeTxt">3:00</span><small id="x2"></small></div>
+        <div class="crowns player"><b id="crPlayer">0</b>👑<small>VOUS</small></div>
+      </div>
+      <div id="labels"></div>
+      <div id="toast"></div>
+      <div id="bottom">
+        <div id="hand"></div>
+        <div id="elixirWrap">
+          <div id="elixirDrop"><span id="elixirNum">5</span></div>
+          <div id="elixirBar"><div id="elixirFill"></div><div id="elixirTicks"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ MENU PRINCIPAL ============ -->
+    <div id="menu">
+      <header class="m-top">
+        <div class="profile">
+          <div class="lvl" id="lvl">1</div>
+          <div><b>Joueur</b><small>🏆 <span id="trophies">0</span></small></div>
+        </div>
+        <div class="res"><span>🪙 <b id="gold">0</b></span><span>💎 <b>80</b></span></div>
+      </header>
+
+      <section id="tabPlay" class="tab active">
+        <div class="top-play">
+          <img class="logo" alt="BonkRoyale" draggable="false" src="data:image/webp;base64,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">
+          <div class="arena-name" id="arenaName">ARÈNE 1<b>Stade des Gobelins</b></div>
+        </div>
+        <div class="play-zone">
+          <div class="deck-title">DECK DE COMBAT</div>
+          <div id="deckMini" title="Modifier le deck"></div>
+          <button id="btnBattle">⚔️ COMBAT</button>
+          <div class="record" id="record">Victoires 0 · Défaites 0</div>
+        </div>
+      </section>
+
+      <section id="tabDeck" class="tab">
+        <div class="sec-head"><h2>DECK DE COMBAT</h2><span id="avgCost">Coût moyen : 3.0 💧</span></div>
+        <div class="grid" id="deckGrid"></div>
+        <div id="cardInfo"></div>
+        <div class="sec-head"><h2>COLLECTION</h2><span id="collCount"></span></div>
+        <div class="grid" id="collGrid"></div>
+      </section>
+
+      <nav class="m-tabs">
+        <button data-tab="play" class="active">⚔️<span>JOUER</span></button>
+        <button data-tab="deck">🃏<span>DECK</span></button>
+      </nav>
+    </div>
+
+    <!-- ============ FIN DE PARTIE ============ -->
+    <div id="overlay" class="hidden">
+      <h1 id="ovTitle">VICTOIRE</h1>
+      <p id="ovText"></p>
+      <button id="ovBtn">🏠 Retour au menu</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* =========================================================
+   CONSTANTES & DONNÉES
+   ========================================================= */
+const W_HALF = 9, L_HALF = 16, RIVER = 1.1;
+const BRIDGES = [-5.5, 5.5];
+const MATCH_TIME = 180;
+const ELIXIR_RATE = 1 / 2.8;
+
+const TEAM = {
+  player: { color: 0x2d7cff, dark: 0x1b4fb0, bar: 0x4aa3ff, side: 1 },
+  enemy:  { color: 0xff3d3d, dark: 0xb01b1b, bar: 0xff4a4a, side: -1 }
+};
+const other = t => t === 'player' ? 'enemy' : 'player';
+
+// Collection complète (12 cartes). splash = rayon de dégâts de zone.
+const CARDS = {
+  knight:    { name:'Chevalier',      icon:'🛡️', rarity:'common', cost:3, hp:1450, dmg:170, range:0.8, speed:1.6, atkSpeed:1.2, radius:0.55, targets:'all', count:1, ranged:false, sight:6,   barY:1.9, barW:1.1, bg:['#6d8fb5','#2c4a6e'], desc:'Un combattant robuste qui encaisse les coups.' },
+  archer:    { name:'Archer',         icon:'🏹', rarity:'common', cost:2, hp:340,  dmg:95,  range:5.5, speed:2.1, atkSpeed:1.0, radius:0.4,  targets:'all', count:1, ranged:true,  sight:6.5, barY:1.75,barW:0.9, bg:['#d47ab0','#7a2a5c'], desc:'Tire des flèches à distance, rapide et peu cher.' },
+  goblins:   { name:'Gobelins',       icon:'👺', rarity:'common', cost:2, hp:220,  dmg:105, range:0.6, speed:2.9, atkSpeed:1.0, radius:0.35, targets:'all', count:3, ranged:false, sight:5.5, barY:1.3, barW:0.7, bg:['#79c25a','#2e6a1e'], desc:'Trois petits filous très rapides.' },
+  skeletons: { name:'Squelettes',     icon:'💀', rarity:'common', cost:1, hp:90,   dmg:70,  range:0.5, speed:2.9, atkSpeed:1.0, radius:0.28, targets:'all', count:3, ranged:false, sight:5,   barY:1.15,barW:0.6, bg:['#9aa3ad','#3d4650'], desc:'Trois squelettes fragiles pour distraire l\'ennemi.' },
+  bomber:    { name:'Bombardier',     icon:'💣', rarity:'common', cost:2, hp:300,  dmg:200, range:4.5, speed:1.6, atkSpeed:1.9, radius:0.35, targets:'all', count:1, ranged:true,  sight:5.5, barY:1.25,barW:0.8, bg:['#8a8a8a','#2e2e2e'], splash:1.5, desc:'Lance des bombes qui touchent toute une zone.' },
+  barbarians:{ name:'Barbares',       icon:'⚔️', rarity:'common', cost:5, hp:640,  dmg:160, range:0.7, speed:1.6, atkSpeed:1.4, radius:0.45, targets:'all', count:4, ranged:false, sight:6,   barY:1.85,barW:0.9, bg:['#e0b84a','#7a5a10'], desc:'Une bande de quatre guerriers moustachus.' },
+  giant:     { name:'Géant',          icon:'🗿', rarity:'rare',   cost:5, hp:3400, dmg:220, range:0.9, speed:1.15,atkSpeed:1.5, radius:0.85, targets:'buildings', count:1, ranged:false, sight:0, barY:2.95,barW:1.5, bg:['#d19a5a','#7a4a1c'], desc:'Énorme réserve de PV, ne cible que les tours.' },
+  musketeer: { name:'Mousquetaire',   icon:'🎯', rarity:'rare',   cost:4, hp:620,  dmg:160, range:6,   speed:1.6, atkSpeed:1.1, radius:0.45, targets:'all', count:1, ranged:true,  sight:7,   barY:1.85,barW:1.0, bg:['#8a7fd1','#3b2f80'], desc:'Tireuse d\'élite à longue portée.' },
+  valkyrie:  { name:'Valkyrie',       icon:'🪓', rarity:'rare',   cost:4, hp:1650, dmg:190, range:0.6, speed:1.6, atkSpeed:1.5, radius:0.55, targets:'all', count:1, ranged:false, sight:6,   barY:1.9, barW:1.1, bg:['#e8875a','#8a3a1a'], splash:1.6, desc:'Fait tournoyer sa hache et frappe tout autour d\'elle.' },
+  minipekka: { name:'Mini P.E.K.K.A', icon:'🤖', rarity:'rare',   cost:4, hp:1250, dmg:620, range:0.7, speed:2.2, atkSpeed:1.7, radius:0.5,  targets:'all', count:1, ranged:false, sight:6,   barY:1.9, barW:1.0, bg:['#5a8aa8','#1e3a52'], desc:'Des dégâts colossaux en un seul coup.' },
+  hog:       { name:'Chevaucheur',    icon:'🐗', rarity:'rare',   cost:4, hp:1500, dmg:260, range:0.8, speed:3.2, atkSpeed:1.6, radius:0.6,  targets:'buildings', count:1, ranged:false, sight:0, barY:2.0, barW:1.1, bg:['#c9894f','#6b3d18'], desc:'Fonce droit sur les tours à toute vitesse.' },
+  wizard:    { name:'Sorcier',        icon:'🔥', rarity:'epic',   cost:5, hp:620,  dmg:220, range:5.5, speed:1.6, atkSpeed:1.4, radius:0.45, targets:'all', count:1, ranged:true,  sight:6.5, barY:2.0, barW:1.0, bg:['#e85a5a','#7a1a2a'], splash:1.5, desc:'Boules de feu à distance avec dégâts de zone.' }
+};
+const ALL_CARDS = Object.keys(CARDS);
+const DEFAULT_DECK = ['knight', 'archer', 'giant', 'goblins', 'musketeer', 'valkyrie', 'skeletons', 'minipekka'];
+const RARITY_FR = { common: 'Commune', rare: 'Rare', epic: 'Épique' };
+const ARENAS = ['Stade des Gobelins', 'Fosse des Os', 'Colisée Barbare', 'Pic des Sorciers', 'Vallée Royale'];
+
+const $ = id => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const shuffle = arr => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+/* =========================================================
+   SAUVEGARDE (deck, trophées, stats)
+   ========================================================= */
+let save = { deck: [...DEFAULT_DECK], trophies: 0, wins: 0, losses: 0, gold: 500 };
+try {
+  const s = JSON.parse((localStorage.getItem('bonkroyale_save') || localStorage.getItem('royale3d_save')) || 'null');
+  if (s) {
+    save.trophies = s.trophies | 0; save.wins = s.wins | 0; save.losses = s.losses | 0; save.gold = s.gold ?? 500;
+    if (Array.isArray(s.deck) && s.deck.length === 8 && s.deck.every(id => CARDS[id]) && new Set(s.deck).size === 8) save.deck = s.deck;
+  }
+} catch (e) { /* stockage indisponible : on garde les valeurs par défaut */ }
+function persist() { try { localStorage.setItem('bonkroyale_save', JSON.stringify(save)); } catch (e) {} }
+
+/* =========================================================
+   RENDU THREE.JS
+   ========================================================= */
+const gameEl = $('game');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+gameEl.insertBefore(renderer.domElement, gameEl.firstChild);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x10202e);
+const camera = new THREE.PerspectiveCamera(52, 9 / 16, 0.1, 200);
+function battleCamera() { camera.position.set(0, 36, 24); camera.lookAt(0, 0, 5); }
+battleCamera();
+
+function resize() {
+  const h = Math.min(window.innerHeight, window.innerWidth * 16 / 9);
+  const w = h * 9 / 16;
+  gameEl.style.width = w + 'px';
+  gameEl.style.height = h + 'px';
+  gameEl.style.fontSize = (w / 400 * 16) + 'px';
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+scene.add(new THREE.HemisphereLight(0xe4f1ff, 0x3a5a22, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+sun.position.set(-10, 30, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 20, bottom: -20, near: 1, far: 80 });
+sun.shadow.bias = -0.0008;
+scene.add(sun);
+
+const lam = c => new THREE.MeshLambertMaterial({ color: c });
+
+/* =========================================================
+   DÉCOR
+   ========================================================= */
+function checkerTexture(cols, rows, c1, c2) {
+  const s = 32, cv = document.createElement('canvas');
+  cv.width = cols * s; cv.height = rows * s;
+  const ctx = cv.getContext('2d');
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    ctx.fillStyle = (r + c) % 2 ? c1 : c2;
+    ctx.fillRect(c * s, r * s, s, s);
+  }
+  for (let i = 0; i < 400; i++) {
+    ctx.fillStyle = 'rgba(30,80,20,0.15)';
+    ctx.fillRect(Math.random() * cv.width, Math.random() * cv.height, 2, 4);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+const halfLen = L_HALF - RIVER;
+const grassMat = new THREE.MeshLambertMaterial({ map: checkerTexture(18, 15, '#6fc04b', '#63b242') });
+const dirtMat = lam(0x6b4a2a);
+for (const s of [1, -1]) {
+  const g = new THREE.Mesh(new THREE.BoxGeometry(W_HALF * 2, 1, halfLen), [dirtMat, dirtMat, grassMat, dirtMat, dirtMat, dirtMat]);
+  g.position.set(0, -0.5, s * (RIVER + halfLen / 2));
+  g.receiveShadow = true;
+  scene.add(g);
+  for (const bx of BRIDGES) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 10.2),
+      new THREE.MeshLambertMaterial({ color: 0xd9c08a, transparent: true, opacity: 0.85 }));
+    p.rotation.x = -Math.PI / 2;
+    p.position.set(bx, 0.01, s * (RIVER + 5.1));
+    p.receiveShadow = true;
+    scene.add(p);
+  }
+}
+
+const riverCv = document.createElement('canvas');
+riverCv.width = 64; riverCv.height = 64;
+{
+  const ctx = riverCv.getContext('2d');
+  ctx.fillStyle = '#3aa2ec'; ctx.fillRect(0, 0, 64, 64);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3;
+  for (let y = 8; y < 64; y += 21) {
+    ctx.beginPath();
+    for (let x = 0; x <= 64; x += 4) ctx.lineTo(x, y + Math.sin(x / 64 * Math.PI * 2) * 4);
+    ctx.stroke();
+  }
+}
+const riverTex = new THREE.CanvasTexture(riverCv);
+riverTex.wrapS = riverTex.wrapT = THREE.RepeatWrapping;
+riverTex.repeat.set(6, 1);
+const river = new THREE.Mesh(new THREE.PlaneGeometry(W_HALF * 2, RIVER * 2),
+  new THREE.MeshPhongMaterial({ map: riverTex, shininess: 80, transparent: true, opacity: 0.95 }));
+river.rotation.x = -Math.PI / 2;
+river.position.y = -0.35;
+scene.add(river);
+const riverBed = new THREE.Mesh(new THREE.BoxGeometry(W_HALF * 2, 0.4, RIVER * 2), lam(0x1d4e78));
+riverBed.position.y = -0.8;
+scene.add(riverBed);
+
+for (const bx of BRIDGES) {
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.3, RIVER * 2 + 1.2), lam(0x9a6b3d));
+  deck.position.set(bx, -0.12, 0);
+  deck.receiveShadow = true; deck.castShadow = true;
+  scene.add(deck);
+  for (let i = -3; i <= 3; i++) {
+    const pl = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.04, 0.06), lam(0x6e4724));
+    pl.position.set(bx, 0.04, i * 0.45);
+    scene.add(pl);
+  }
+  for (const side of [-1, 1]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, RIVER * 2 + 1.2), lam(0x7a5230));
+    rail.position.set(bx + side * 1.1, 0.18, 0);
+    rail.castShadow = true;
+    scene.add(rail);
+  }
+}
+
+const wallMat = lam(0x8d8a84);
+function wall(w, h, d, x, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+  m.position.set(x, h / 2 - 0.3, z);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+wall(0.8, 1.1, L_HALF * 2 + 1.6, -W_HALF - 0.4, 0);
+wall(0.8, 1.1, L_HALF * 2 + 1.6, W_HALF + 0.4, 0);
+wall(W_HALF * 2, 1.1, 0.8, 0, -L_HALF - 0.4);
+wall(W_HALF * 2, 1.1, 0.8, 0, L_HALF + 0.4);
+
+// Décor extérieur (visible depuis la caméra du menu)
+const outside = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), lam(0x3f7a34));
+outside.rotation.x = -Math.PI / 2;
+outside.position.y = -0.95;
+outside.receiveShadow = true;
+scene.add(outside);
+for (let i = 0; i < 40; i++) {
+  const a = Math.random() * Math.PI * 2, r = rand(14, 30);
+  const x = Math.cos(a) * r * 0.9, z = Math.sin(a) * r * 1.1;
+  if (Math.abs(x) < 11 && Math.abs(z) < 18) continue;
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 1.2, 8), lam(0x6b4423));
+  trunk.position.y = 0.6 - 0.9;
+  const s = rand(0.9, 1.6);
+  const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.3 * s, 2.8 * s, 9), lam(0x2f6e2a));
+  leaves.position.y = 1.2 + 1.4 * s - 0.9;
+  trunk.castShadow = leaves.castShadow = true;
+  tree.add(trunk, leaves);
+  tree.position.set(x, 0, z);
+  scene.add(tree);
+}
+
+// Zones de déploiement
+const zoneMat = new THREE.MeshBasicMaterial({ color: 0x55ff99, transparent: true, opacity: 0.16, depthWrite: false });
+function zonePlane(w, d, x, z) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), zoneMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.03, z);
+  m.visible = false;
+  scene.add(m);
+  return m;
+}
+const zoneMain = zonePlane(16.8, 13.9, 0, 1.6 + 13.9 / 2);
+const zonePocket = { '-1': zonePlane(8.4, 4.4, -4.2, -3.8), '1': zonePlane(8.4, 4.4, 4.2, -3.8) };
+
+const ghost = new THREE.Group();
+const ghostMat = new THREE.MeshBasicMaterial({ color: 0x55ff99, transparent: true, opacity: 0.8, depthWrite: false });
+const ghostRing = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.75, 32), ghostMat);
+ghostRing.rotation.x = -Math.PI / 2;
+const ghostDot = new THREE.Mesh(new THREE.CircleGeometry(0.2, 16), ghostMat);
+ghostDot.rotation.x = -Math.PI / 2;
+ghost.add(ghostRing, ghostDot);
+ghost.visible = false;
+scene.add(ghost);
+
+/* =========================================================
+   ÉTAT DU JEU
+   ========================================================= */
+let units = [], towers = [], projectiles = [], fx = [];
+let state = 'menu';          // 'menu' | 'playing' | 'over'
+let timeLeft = MATCH_TIME;
+let elixir = 5;
+let crowns = { player: 0, enemy: 0 };
+let hand = [], queue = [];   // main de 4 cartes + file d'attente (cycle du deck)
+let selected = null;         // index dans la main
+const ai = { elixir: 5, deck: [], next: 'knight', cd: 3 };
+
+/* =========================================================
+   BARRES DE VIE
+   ========================================================= */
+function makeHpBar(width, color) {
+  const group = new THREE.Group();
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.1, 0.22),
+    new THREE.MeshBasicMaterial({ color: 0x111111, depthTest: false, transparent: true, opacity: 0.85 }));
+  const fgGeo = new THREE.PlaneGeometry(width, 0.14);
+  fgGeo.translate(width / 2, 0, 0);
+  const fg = new THREE.Mesh(fgGeo, new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }));
+  fg.position.set(-width / 2, 0, 0.001);
+  bg.renderOrder = 998; fg.renderOrder = 999;
+  group.add(bg, fg);
+  scene.add(group);
+  return { group, fg };
+}
+
+/* =========================================================
+   TOURS
+   ========================================================= */
+function createTower(team, type, x, z) {
+  const king = type === 'king';
+  const T = TEAM[team];
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const add = (geo, mat, px, py, pz) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(px, py, pz);
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m); return m;
+  };
+  const stone = lam(0xbdb6a9), stoneDark = lam(0x8f887c), tm = lam(T.color);
+  if (king) {
+    add(new THREE.BoxGeometry(3.4, 0.6, 3.4), stoneDark, 0, 0.3, 0);
+    add(new THREE.BoxGeometry(2.7, 2.2, 2.7), stone, 0, 1.7, 0);
+    add(new THREE.BoxGeometry(3.0, 0.5, 3.0), tm, 0, 3.05, 0);
+    for (const cx of [-1.2, 1.2]) for (const cz of [-1.2, 1.2])
+      add(new THREE.BoxGeometry(0.6, 0.6, 0.6), stone, cx, 3.6, cz);
+    const gold = new THREE.MeshLambertMaterial({ color: 0xffcf3a, emissive: 0x332200 });
+    add(new THREE.CylinderGeometry(0.55, 0.65, 0.45, 10), gold, 0, 3.55, 0);
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * Math.PI * 2;
+      add(new THREE.ConeGeometry(0.13, 0.4, 6), gold, Math.cos(a) * 0.5, 3.95, Math.sin(a) * 0.5);
+    }
+  } else {
+    add(new THREE.CylinderGeometry(1.35, 1.45, 0.5, 16), stoneDark, 0, 0.25, 0);
+    add(new THREE.CylinderGeometry(1.0, 1.15, 2.4, 16), stone, 0, 1.45, 0);
+    add(new THREE.CylinderGeometry(1.28, 1.15, 0.45, 16), tm, 0, 2.85, 0);
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2;
+      add(new THREE.BoxGeometry(0.4, 0.45, 0.4), stone, Math.cos(a) * 1.05, 3.3, Math.sin(a) * 1.05);
+    }
+    add(new THREE.CylinderGeometry(0.2, 0.3, 0.55, 10), lam(T.dark), 0, 3.35, 0);
+    add(new THREE.SphereGeometry(0.22, 12, 10), lam(0xf1c79b), 0, 3.8, 0);
+  }
+  scene.add(g);
+  const mats = [];
+  g.traverse(o => { if (o.isMesh && !mats.includes(o.material)) mats.push(o.material); });
+  const label = document.createElement('div');
+  label.className = 'tlabel';
+  $('labels').appendChild(label);
+  const t = {
+    kind: 'tower', team, type, x, z, alive: true,
+    hp: king ? 4000 : 2500, maxHp: king ? 4000 : 2500,
+    radius: king ? 1.7 : 1.3, range: 7.5,
+    dmg: king ? 120 : 95, rate: king ? 1.0 : 0.8, cd: 0,
+    active: !king, target: null, hitY: king ? 3.3 : 2.9, barY: king ? 4.7 : 4.2,
+    mesh: g, mats, flash: 0, label,
+    hpBar: makeHpBar(king ? 2.6 : 2.0, T.bar)
+  };
+  towers.push(t);
+  return t;
+}
+
+/* =========================================================
+   MODÈLES 3D DES UNITÉS
+   ========================================================= */
+function buildUnitMesh(type, team) {
+  const T = TEAM[team];
+  const root = new THREE.Group(), body = new THREE.Group();
+  root.add(body);
+  const add = (geo, mat, x, y, z) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    body.add(m); return m;
+  };
+  const tm = lam(T.color), dark = lam(T.dark), skin = lam(0xf1c79b), metal = lam(0xd5dbe3), wood = lam(0x7a4a1c);
+  const bone = lam(0xeeeae0), black = lam(0x1e1e1e);
+  const Cyl = (a, b, h, s = 12) => new THREE.CylinderGeometry(a, b, h, s);
+  const Sph = (r, w = 12, h = 10) => new THREE.SphereGeometry(r, w, h);
+  const Box = (x, y, z) => new THREE.BoxGeometry(x, y, z);
+  const Cone = (r, h, s = 10) => new THREE.ConeGeometry(r, h, s);
+
+  switch (type) {
+    case 'knight':
+      add(Cyl(0.38, 0.5, 0.9, 14), tm, 0, 0.5, 0);
+      add(Cyl(0.42, 0.42, 0.12, 14), wood, 0, 0.62, 0);
+      add(Sph(0.3, 14), skin, 0, 1.2, 0);
+      add(new THREE.SphereGeometry(0.34, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), metal, 0, 1.24, 0);
+      add(Box(0.08, 0.08, 1.0), metal, 0.48, 0.8, 0.35);
+      add(Box(0.12, 0.65, 0.55), dark, -0.5, 0.7, 0.1);
+      break;
+    case 'archer': {
+      add(Cyl(0.22, 0.38, 0.85), tm, 0, 0.43, 0);
+      add(Sph(0.25, 14), skin, 0, 1.05, 0);
+      add(Cone(0.3, 0.5, 12), dark, 0, 1.35, 0);
+      const bow = add(new THREE.TorusGeometry(0.42, 0.035, 6, 16, Math.PI), wood, 0.36, 0.75, 0.15);
+      bow.rotation.set(0, Math.PI / 2, Math.PI / 2);
+      break;
+    }
+    case 'giant':
+      add(Cyl(0.22, 0.22, 0.7, 10), wood, -0.3, 0.35, 0);
+      add(Cyl(0.22, 0.22, 0.7, 10), wood, 0.3, 0.35, 0);
+      add(Cyl(0.65, 0.6, 1.2, 16), tm, 0, 1.25, 0);
+      add(Cyl(0.67, 0.67, 0.18, 16), wood, 0, 0.85, 0);
+      add(Sph(0.3), dark, -0.72, 1.7, 0);
+      add(Sph(0.3), dark, 0.72, 1.7, 0);
+      add(Sph(0.32), skin, -0.85, 1.05, 0.15);
+      add(Sph(0.32), skin, 0.85, 1.05, 0.15);
+      add(Sph(0.42, 16, 12), skin, 0, 2.15, 0);
+      add(new THREE.SphereGeometry(0.44, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.3), lam(0xd8762b), 0, 2.22, -0.03);
+      break;
+    case 'goblins': {
+      add(Cyl(0.18, 0.26, 0.45, 10), tm, 0, 0.25, 0);
+      const green = lam(0x6cc24a);
+      add(Sph(0.27), green, 0, 0.7, 0);
+      add(Cone(0.09, 0.35, 6), green, -0.3, 0.75, 0).rotation.z = Math.PI / 2.2;
+      add(Cone(0.09, 0.35, 6), green, 0.3, 0.75, 0).rotation.z = -Math.PI / 2.2;
+      add(Box(0.05, 0.05, 0.4), metal, 0.25, 0.4, 0.25);
+      break;
+    }
+    case 'skeletons':
+      add(Cyl(0.1, 0.14, 0.4, 8), bone, 0, 0.25, 0);
+      add(Cyl(0.17, 0.17, 0.08, 10), tm, 0, 0.45, 0);
+      add(Sph(0.2), bone, 0, 0.62, 0);
+      add(Sph(0.05, 6, 4), black, -0.08, 0.65, 0.17);
+      add(Sph(0.05, 6, 4), black, 0.08, 0.65, 0.17);
+      add(Box(0.04, 0.04, 0.35), metal, 0.18, 0.35, 0.2);
+      break;
+    case 'bomber': {
+      add(Cyl(0.12, 0.16, 0.45, 8), bone, 0, 0.27, 0);
+      add(Cyl(0.19, 0.19, 0.09, 10), tm, 0, 0.5, 0);
+      add(Sph(0.22), bone, 0, 0.72, 0);
+      add(Sph(0.05, 6, 4), black, -0.08, 0.75, 0.19);
+      add(Sph(0.05, 6, 4), black, 0.08, 0.75, 0.19);
+      add(Sph(0.22), black, 0.05, 0.55, 0.32);
+      add(Cyl(0.02, 0.02, 0.15, 5), lam(0xffaa33), 0.05, 0.8, 0.32);
+      break;
+    }
+    case 'barbarians': {
+      add(Cyl(0.35, 0.45, 0.85, 12), tm, 0, 0.45, 0);
+      add(Cyl(0.47, 0.47, 0.14, 12), lam(0x8b5a2b), 0, 0.55, 0);
+      add(Sph(0.28), skin, 0, 1.1, 0);
+      const blond = lam(0xf1c232);
+      add(new THREE.SphereGeometry(0.3, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2.2), blond, 0, 1.16, -0.02);
+      add(Cone(0.18, 0.35, 8), blond, 0, 0.88, 0.17).rotation.x = Math.PI;
+      add(Box(0.07, 0.07, 0.85), metal, 0.42, 0.75, 0.3);
+      break;
+    }
+    case 'musketeer':
+      add(Cyl(0.3, 0.42, 0.9), tm, 0, 0.45, 0);
+      add(Sph(0.26, 14), skin, 0, 1.08, 0);
+      add(Cyl(0.42, 0.42, 0.05, 16), dark, 0, 1.28, 0);
+      add(Cyl(0.2, 0.24, 0.3), dark, 0, 1.43, 0);
+      add(Cone(0.05, 0.35, 6), lam(0xffffff), 0.18, 1.55, -0.1).rotation.z = -0.6;
+      add(Box(0.07, 0.07, 1.1), wood, 0.3, 0.85, 0.35);
+      break;
+    case 'valkyrie':
+      add(Cyl(0.4, 0.5, 0.85, 14), tm, 0, 0.45, 0);
+      add(Cyl(0.45, 0.45, 0.1, 14), lam(0x8b5a2b), 0, 0.6, 0);
+      add(Sph(0.3, 14), skin, 0, 1.1, 0);
+      add(Sph(0.32, 14), lam(0xe0662b), 0, 1.2, -0.07);
+      add(Sph(0.12), lam(0xe0662b), -0.28, 0.95, -0.12);
+      add(Sph(0.12), lam(0xe0662b), 0.28, 0.95, -0.12);
+      add(Cyl(0.04, 0.04, 1.0, 6), wood, 0.55, 0.8, 0.1).rotation.x = Math.PI / 2;
+      add(Box(0.05, 0.45, 0.35), metal, 0.55, 0.8, 0.55);
+      break;
+    case 'minipekka': {
+      const armor = lam(0x3c4656);
+      add(Box(0.18, 0.5, 0.2), armor, -0.2, 0.25, 0);
+      add(Box(0.18, 0.5, 0.2), armor, 0.2, 0.25, 0);
+      add(Box(0.7, 0.6, 0.55), armor, 0, 0.8, 0);
+      add(Sph(0.2), tm, -0.42, 1.05, 0);
+      add(Sph(0.2), tm, 0.42, 1.05, 0);
+      add(Box(0.5, 0.4, 0.5), armor, 0, 1.3, 0);
+      add(Cone(0.07, 0.35, 6), armor, -0.2, 1.6, 0).rotation.z = 0.4;
+      add(Cone(0.07, 0.35, 6), armor, 0.2, 1.6, 0).rotation.z = -0.4;
+      add(Sph(0.07, 8, 6), new THREE.MeshBasicMaterial({ color: 0x55e6ff }), 0, 1.32, 0.26);
+      add(Box(0.1, 0.12, 1.2), metal, 0.5, 0.8, 0.45);
+      break;
+    }
+    case 'hog': {
+      const pig = lam(0x8b5a3c);
+      const b = add(Sph(0.45, 14), pig, 0, 0.55, 0); b.scale.set(1, 0.8, 1.5);
+      for (const [lx, lz] of [[-0.25, -0.4], [0.25, -0.4], [-0.25, 0.4], [0.25, 0.4]]) add(Cyl(0.08, 0.08, 0.35, 6), pig, lx, 0.18, lz);
+      add(Cyl(0.13, 0.13, 0.12, 10), lam(0xe8a0a0), 0, 0.55, 0.72).rotation.x = Math.PI / 2;
+      add(Cyl(0.25, 0.32, 0.55, 10), tm, 0, 1.15, -0.1);
+      add(Sph(0.22), skin, 0, 1.55, -0.1);
+      add(Box(0.07, 0.15, 0.4), black, 0, 1.75, -0.1);
+      add(Cyl(0.04, 0.04, 0.8, 6), wood, 0.4, 1.3, 0.1);
+      add(Box(0.25, 0.25, 0.35), metal, 0.4, 1.7, 0.1);
+      break;
+    }
+    case 'wizard':
+      add(Cone(0.45, 1.1, 14), tm, 0, 0.55, 0);
+      add(Sph(0.26, 14), skin, 0, 1.25, 0);
+      add(Cone(0.15, 0.35, 8), lam(0xdddddd), 0, 1.0, 0.17).rotation.x = Math.PI;
+      add(Cone(0.32, 0.6, 12), dark, 0, 1.62, 0);
+      add(Cyl(0.04, 0.04, 1.4, 6), wood, 0.4, 0.75, 0.1);
+      add(Sph(0.13, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff8a1e }), 0.4, 1.5, 0.1);
+      break;
+  }
+  // disque coloré au sol (identifie l'équipe)
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(CARDS[type].radius, 18),
+    new THREE.MeshBasicMaterial({ color: T.color, transparent: true, opacity: 0.35, depthWrite: false }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0.02;
+  root.add(ground);
+
+  const mats = [];
+  body.traverse(o => { if (o.isMesh && !mats.includes(o.material)) mats.push(o.material); });
+  return { root, body, mats };
+}
+
+function groupOffsets(n, r) {
+  if (n === 3) return [[0, -1], [-1, 0.7], [1, 0.7]].map(([x, z]) => [x * r * 1.6, z * r * 1.6]);
+  if (n === 4) return [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([x, z]) => [x * r * 1.2, z * r * 1.2]);
+  return [[0, 0]];
+}
+
+function spawn(type, team, x, z) {
+  const c = CARDS[type];
+  const s = TEAM[team].side;
+  for (const [ox, oz] of groupOffsets(c.count, c.radius)) {
+    const { root, body, mats } = buildUnitMesh(type, team);
+    const u = {
+      kind: 'unit', type, team, stats: c, alive: true,
+      x: clamp(x + ox, -W_HALF + 0.5, W_HALF - 0.5), z: z + oz * s,
+      hp: c.hp, maxHp: c.hp, radius: c.radius, hitY: c.barY * 0.55,
+      mesh: root, body, mats, target: null, atkCd: 0.4, retarget: 0,
+      deploy: 1.0, flash: 0, lunge: 0, walking: false, phase: Math.random() * 6,
+      hpBar: makeHpBar(c.barW, TEAM[team].bar)
+    };
+    root.rotation.y = s > 0 ? Math.PI : 0;
+    scene.add(root);
+    units.push(u);
+  }
+  ringFx(x, z, TEAM[team].bar, 3);
+}
+
+/* =========================================================
+   EFFETS
+   ========================================================= */
+const partGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+function burst(x, y, z, color, n = 10, spd = 4) {
+  const mat = new THREE.MeshBasicMaterial({ color });
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(partGeo, mat);
+    m.position.set(x, y, z);
+    scene.add(m);
+    const v = new THREE.Vector3(rand(-1, 1), rand(0.5, 1.5), rand(-1, 1)).multiplyScalar(spd);
+    const life = rand(0.4, 0.8);
+    fx.push({ life, max: life, mesh: m, update(dt) {
+      v.y -= 14 * dt;
+      m.position.addScaledVector(v, dt);
+      if (m.position.y < 0.05) { m.position.y = 0.05; v.multiplyScalar(0.5); }
+      m.scale.setScalar(Math.max(0.01, this.life / this.max));
+    }});
+  }
+}
+function ringFx(x, z, color, grow = 3, inner = 0.3) {
+  const m = new THREE.Mesh(new THREE.RingGeometry(inner, inner + 0.15, 32),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.06, z);
+  scene.add(m);
+  fx.push({ life: 0.5, max: 0.5, mesh: m, update() {
+    const k = 1 - this.life / this.max;
+    m.scale.setScalar(1 + k * grow);
+    m.material.opacity = 0.9 * (1 - k);
+  }});
+}
+function updateFx(dt) {
+  for (const f of fx) {
+    f.life -= dt;
+    f.update(dt);
+    if (f.life <= 0) scene.remove(f.mesh);
+  }
+  fx = fx.filter(f => f.life > 0);
+}
+
+/* =========================================================
+   PROJECTILES & DÉGÂTS DE ZONE
+   ========================================================= */
+const projGeo = new THREE.SphereGeometry(1, 10, 8);
+const projMats = {
+  player: new THREE.MeshBasicMaterial({ color: 0x9fd0ff }),
+  enemy: new THREE.MeshBasicMaterial({ color: 0xffb0a0 }),
+  cannon: new THREE.MeshBasicMaterial({ color: 0x333333 }),
+  fire: new THREE.MeshBasicMaterial({ color: 0xff7a1a }),
+  bomb: new THREE.MeshBasicMaterial({ color: 0x151515 })
+};
+function fireProjectile(x, y, z, target, dmg, mat, size, speed, team, splash = 0) {
+  const m = new THREE.Mesh(projGeo, mat);
+  m.scale.setScalar(size);
+  m.position.set(x, y, z);
+  scene.add(m);
+  projectiles.push({ mesh: m, target, dmg, speed, team, splash, alive: true });
+}
+
+function splashDamage(team, x, z, r, dmg, exclude) {
+  for (const e of units) {
+    if (!e.alive || e.team === team || e === exclude) continue;
+    if (Math.hypot(e.x - x, e.z - z) <= r + e.radius) damage(e, dmg);
+  }
+}
+
+const _tp = new THREE.Vector3();
+function updateProjectiles(dt) {
+  for (const p of projectiles) {
+    const t = p.target;
+    if (!t.alive) { p.alive = false; scene.remove(p.mesh); continue; }
+    _tp.set(t.x, t.hitY, t.z);
+    const d = _tp.clone().sub(p.mesh.position);
+    const len = d.length(), step = p.speed * dt;
+    if (len <= step + 0.1) {
+      const tx = t.x, tz = t.z;
+      damage(t, p.dmg);
+      if (p.splash) {
+        splashDamage(p.team, tx, tz, p.splash, p.dmg, t);
+        ringFx(tx, tz, 0xffa040, 2, p.splash * 0.4);
+        burst(tx, 0.5, tz, 0xff8a1e, 8, 3.5);
+      } else {
+        burst(_tp.x, _tp.y, _tp.z, 0xffe680, 4, 2.5);
+      }
+      p.alive = false; scene.remove(p.mesh);
+    } else {
+      p.mesh.position.addScaledVector(d.multiplyScalar(1 / len), step);
+    }
+  }
+  projectiles = projectiles.filter(p => p.alive);
+}
+
+function damage(e, amt) {
+  if (!e.alive) return;
+  e.hp -= amt;
+  e.flash = 0.12;
+  if (e.kind === 'tower' && e.type === 'king') e.active = true;
+  if (e.hp <= 0) { e.hp = 0; kill(e); }
+}
+
+function kill(e) {
+  e.alive = false;
+  if (e.kind === 'unit') {
+    scene.remove(e.mesh);
+    scene.remove(e.hpBar.group);
+    burst(e.x, 0.6, e.z, TEAM[e.team].color, 10, 4);
+    burst(e.x, 0.6, e.z, 0xffffff, 5, 3);
+  } else {
+    e.mesh.scale.y = 0.22;
+    e.mats.forEach(m => m.color.multiplyScalar(0.45));
+    e.hpBar.group.visible = false;
+    e.label.style.display = 'none';
+    for (let i = 0; i < 3; i++) burst(e.x + rand(-1, 1), 1.5, e.z + rand(-1, 1), 0x9a948a, 12, 6);
+    const winner = other(e.team);
+    if (e.type === 'king') {
+      crowns[winner] = 3;
+      endGame();
+    } else {
+      crowns[winner] = Math.min(3, crowns[winner] + 1);
+      towers.forEach(t => { if (t.team === e.team && t.type === 'king') t.active = true; });
+    }
+  }
+}
+
+/* =========================================================
+   IA DES UNITÉS : ciblage & déplacement
+   ========================================================= */
+const reach = (u, t) => u.stats.range + u.radius + t.radius;
+
+function findTarget(u) {
+  let best = null, bd = Infinity;
+  if (u.stats.targets === 'all') {
+    for (const e of units) {
+      if (!e.alive || e.team === u.team) continue;
+      const d = dist(u, e);
+      if (d <= u.stats.sight + e.radius && d < bd) { bd = d; best = e; }
+    }
+    if (best) return best;
+  }
+  for (const t of towers) {
+    if (!t.alive || t.team === u.team) continue;
+    const d = dist(u, t);
+    if (d < bd) { bd = d; best = t; }
+  }
+  return best;
+}
+
+function pickBridge(ux, tx) {
+  let best = BRIDGES[0], bc = Infinity;
+  for (const bx of BRIDGES) {
+    const c = Math.abs(ux - bx) + Math.abs(tx - bx);
+    if (c < bc) { bc = c; best = bx; }
+  }
+  return best;
+}
+
+function pathPoint(u, tx, tz) {
+  const bx = pickBridge(u.x, tx);
+  const onBridge = Math.abs(u.z) < RIVER + 0.4 && Math.abs(u.x - bx) < 1.2;
+  if (Math.abs(tz) < RIVER) {
+    if (Math.abs(u.z) > RIVER && Math.abs(u.x - bx) > 0.3) return { x: bx, z: Math.sign(u.z) * (RIVER + 0.5) };
+    return { x: tx, z: tz };
+  }
+  const ts = Math.sign(tz);
+  if (onBridge) return Math.sign(u.z) === ts && Math.abs(u.z) > RIVER ? { x: tx, z: tz } : { x: bx, z: ts * (RIVER + 0.7) };
+  const us = Math.sign(u.z);
+  if (us === ts) return { x: tx, z: tz };
+  if (Math.abs(u.x - bx) > 0.25) return { x: bx, z: us * (RIVER + 0.5) };
+  return { x: bx, z: ts * (RIVER + 0.7) };
+}
+
+function faceTo(u, x, z) {
+  const target = Math.atan2(x - u.x, z - u.z);
+  let d = target - u.mesh.rotation.y;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  u.mesh.rotation.y += d * 0.25;
+}
+
+function updateUnit(u, dt) {
+  if (u.deploy > 0) { u.deploy -= dt; return; }
+  u.atkCd -= dt;
+  u.retarget -= dt;
+  u.walking = false;
+  if (u.lunge > 0) u.lunge -= dt;
+
+  const inReach = u.target && u.target.alive && dist(u, u.target) <= reach(u, u.target);
+  if (!u.target || !u.target.alive || (!inReach && u.retarget <= 0)) {
+    u.target = findTarget(u);
+    u.retarget = 0.3;
+  }
+  const t = u.target;
+  if (!t) return;
+
+  if (dist(u, t) <= reach(u, t)) {
+    faceTo(u, t.x, t.z);
+    if (u.atkCd <= 0) {
+      const st = u.stats;
+      u.atkCd = st.atkSpeed;
+      if (st.ranged) {
+        const mat = u.type === 'wizard' ? projMats.fire : u.type === 'bomber' ? projMats.bomb : projMats[u.team];
+        const size = st.splash ? 0.2 : 0.12;
+        fireProjectile(u.x, 1.1, u.z, t, st.dmg, mat, size, st.splash ? 11 : 16, u.team, st.splash || 0);
+      } else {
+        damage(t, st.dmg);
+        if (st.splash) { splashDamage(u.team, u.x, u.z, st.splash, st.dmg, t); ringFx(u.x, u.z, 0xffffff, 1.5, st.splash * 0.5); }
+        u.lunge = 0.25;
+        burst(t.x + (u.x - t.x) * 0.3, 0.8, t.z + (u.z - t.z) * 0.3, 0xffffff, 3, 2);
+      }
+    }
+  } else {
+    const wp = pathPoint(u, t.x, t.z);
+    const dx = wp.x - u.x, dz = wp.z - u.z, l = Math.hypot(dx, dz) || 1;
+    const step = Math.min(l, u.stats.speed * dt);
+    u.x += dx / l * step;
+    u.z += dz / l * step;
+    faceTo(u, wp.x, wp.z);
+    u.walking = true;
+  }
+}
+
+function resolveCollisions() {
+  for (let i = 0; i < units.length; i++) {
+    const a = units[i];
+    if (!a.alive) continue;
+    for (let j = i + 1; j < units.length; j++) {
+      const b = units[j];
+      if (!b.alive) continue;
+      const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = a.radius + b.radius;
+      if (d < min && d > 1e-4) {
+        const push = (min - d), wa = b.radius / min, wb = a.radius / min;
+        a.x -= dx / d * push * wa * 0.5; a.z -= dz / d * push * wa * 0.5;
+        b.x += dx / d * push * wb * 0.5; b.z += dz / d * push * wb * 0.5;
+      }
+    }
+    for (const t of towers) {
+      if (!t.alive) continue;
+      const dx = a.x - t.x, dz = a.z - t.z, d = Math.hypot(dx, dz) || 1e-4, min = a.radius + t.radius;
+      if (d < min) { a.x = t.x + dx / d * min; a.z = t.z + dz / d * min; }
+    }
+    if (Math.abs(a.z) < RIVER) {
+      const bx = BRIDGES.reduce((p, c) => Math.abs(c - a.x) < Math.abs(p - a.x) ? c : p);
+      if (Math.abs(a.x - bx) > 1.0) {
+        if (Math.abs(a.z) > RIVER - 0.4) a.z = (Math.sign(a.z) || 1) * RIVER;
+        else a.x = bx + Math.sign(a.x - bx) * 1.0;
+      }
+    }
+    a.x = clamp(a.x, -W_HALF + a.radius, W_HALF - a.radius);
+    a.z = clamp(a.z, -L_HALF + a.radius, L_HALF - a.radius);
+  }
+}
+
+function updateTower(t, dt) {
+  if (!t.alive) return;
+  t.cd -= dt;
+  if (!t.active) return;
+  if (t.target && (!t.target.alive || dist(t, t.target) > t.range + t.target.radius)) t.target = null;
+  if (!t.target) {
+    let bd = Infinity;
+    for (const u of units) {
+      if (!u.alive || u.team === t.team) continue;
+      const d = dist(t, u);
+      if (d <= t.range + u.radius && d < bd) { bd = d; t.target = u; }
+    }
+  }
+  if (t.target && t.cd <= 0) {
+    t.cd = t.rate;
+    fireProjectile(t.x, t.hitY + 0.7, t.z, t.target, t.dmg,
+      t.type === 'king' ? projMats.cannon : projMats[t.team], t.type === 'king' ? 0.26 : 0.17, 14, t.team);
+  }
+}
+
+/* =========================================================
+   IA ENNEMIE
+   ========================================================= */
+function updateAI(dt, rate) {
+  ai.elixir = Math.min(10, ai.elixir + rate * dt);
+  ai.cd -= dt;
+  if (ai.cd > 0) return;
+  const card = CARDS[ai.next];
+  if (ai.elixir < card.cost) return;
+
+  const threats = units.filter(u => u.alive && u.team === 'player' && u.z < 3).sort((a, b) => a.z - b.z);
+  let x, z;
+  if (threats.length && card.targets === 'all') {
+    const th = threats[0];
+    x = clamp(th.x + rand(-1.5, 1.5), -8, 8);
+    z = clamp(th.z - (card.ranged ? 6 : 3.5), -15, -2.2);
+  } else {
+    if (ai.elixir < Math.min(10, card.cost + 2)) return;
+    const princ = towers.filter(t => t.team === 'player' && t.type === 'princess' && t.alive);
+    let lane = BRIDGES[Math.random() < 0.5 ? 0 : 1];
+    if (princ.length) lane = princ.sort((a, b) => a.hp - b.hp)[0].x < 0 ? -5.5 : 5.5;
+    x = lane + rand(-1, 1);
+    z = ai.next === 'giant' ? -12.5 : (card.speed >= 2.8 ? -2.5 : card.ranged ? rand(-12, -9) : rand(-10, -6));
+  }
+  spawn(ai.next, 'enemy', clamp(x, -8.4, 8.4), clamp(z, -15.5, -1.8));
+  ai.elixir -= card.cost;
+  ai.next = ai.deck[Math.floor(Math.random() * ai.deck.length)];
+  ai.cd = rand(1, 3.5);
+}
+
+/* =========================================================
+   ÉLÉMENT CARTE (HTML)
+   ========================================================= */
+function cardEl(id, extra = '') {
+  const c = CARDS[id];
+  const el = document.createElement('div');
+  el.className = `card r-${c.rarity} ${extra}`;
+  el.dataset.id = id;
+  el.style.background = `linear-gradient(160deg,${c.bg[0]},${c.bg[1]})`;
+  el.innerHTML = `<div class="cost">${c.cost}</div><div class="icon">${c.icon}</div><div class="name">${c.name}${c.count > 1 ? ' x' + c.count : ''}</div>`;
+  return el;
+}
+
+/* =========================================================
+   MAIN DE COMBAT (4 cartes + carte suivante, cycle du deck)
+   ========================================================= */
+const handEl = $('hand');
+function renderHand() {
+  handEl.innerHTML = '';
+  const nw = document.createElement('div');
+  nw.id = 'nextWrap';
+  nw.innerHTML = '<small>SUIVANTE</small>';
+  nw.appendChild(cardEl(queue[0]));
+  handEl.appendChild(nw);
+  hand.forEach((id, i) => {
+    const el = cardEl(id, selected === i ? 'sel' : '');
+    el.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      if (state !== 'playing') return;
+      selectCard(selected === i ? null : i);
+    });
+    handEl.appendChild(el);
+  });
+}
+function selectCard(i) {
+  selected = i;
+  [...handEl.querySelectorAll(':scope > .card')].forEach((el, k) => el.classList.toggle('sel', k === i));
+  zoneMain.visible = i !== null;
+  for (const s of ['-1', '1']) zonePocket[s].visible = i !== null && pocketOpen('player', +s);
+  if (i === null) ghost.visible = false;
+}
+function playFromHand(i) {
+  queue.push(hand[i]);
+  hand[i] = queue.shift();
+  selected = null;
+  renderHand();
+  selectCard(null);
+}
+
+function pocketOpen(team, sideX) {
+  return towers.some(t => t.team === other(team) && t.type === 'princess' && !t.alive && Math.sign(t.x) === sideX);
+}
+function canDeploy(team, x, z) {
+  if (Math.abs(x) > W_HALF - 0.6) return false;
+  const zz = z * TEAM[team].side;
+  if (zz >= 1.6 && zz <= L_HALF - 0.5) return true;
+  if (zz <= -1.6 && zz >= -6 && x !== 0 && pocketOpen(team, Math.sign(x))) return true;
+  return false;
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1100);
+}
+
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function pickGround(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const p = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(groundPlane, p) ? p : null;
+}
+function updateGhost(p) {
+  if (!p) { ghost.visible = false; return; }
+  ghost.visible = true;
+  ghost.position.set(p.x, 0.05, p.z);
+  ghostMat.color.setHex(canDeploy('player', p.x, p.z) ? 0x55ff99 : 0xff4444);
+}
+
+const cv = renderer.domElement;
+cv.addEventListener('pointermove', e => { if (selected !== null && state === 'playing') updateGhost(pickGround(e)); });
+cv.addEventListener('pointerdown', e => {
+  if (state !== 'playing' || selected === null) return;
+  const p = pickGround(e);
+  if (!p) return;
+  updateGhost(p);
+  if (!canDeploy('player', p.x, p.z)) { toast('⛔ Zone interdite'); return; }
+  const id = hand[selected], c = CARDS[id];
+  if (elixir < c.cost) { toast('💧 Pas assez d\'élixir'); return; }
+  elixir -= c.cost;
+  spawn(id, 'player', p.x, p.z);
+  playFromHand(selected);
+});
+
+function updateHUD() {
+  $('elixirFill').style.width = (elixir / 10 * 100) + '%';
+  $('elixirNum').textContent = Math.floor(elixir);
+  [...handEl.querySelectorAll(':scope > .card')].forEach(el => el.classList.toggle('off', elixir < CARDS[el.dataset.id].cost));
+  const s = Math.max(0, Math.ceil(timeLeft));
+  $('timeTxt').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  $('x2').textContent = timeLeft <= 60 ? 'ÉLIXIR x2' : '';
+  $('crPlayer').textContent = crowns.player;
+  $('crEnemy').textContent = crowns.enemy;
+}
+
+/* =========================================================
+   MENU PRINCIPAL : onglets JOUER / DECK
+   ========================================================= */
+let activeTab = 'play';
+let infoCard = null;   // { id, from: 'deck' | 'coll' }
+let swapping = null;   // carte de la collection en attente de placement
+
+function setTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.m-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $('tabPlay').classList.toggle('active', tab === 'play');
+  $('tabDeck').classList.toggle('active', tab === 'deck');
+  if (tab !== 'deck') { swapping = null; infoCard = null; }
+  renderMenu();
+}
+document.querySelectorAll('.m-tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$('deckMini').addEventListener('click', () => setTab('deck'));
+
+function speedLabel(s) { return s < 1.4 ? 'Lente' : s < 2.2 ? 'Moyenne' : s < 3 ? 'Rapide' : 'Très rapide'; }
+
+function renderMenu() {
+  // Profil & ressources
+  $('trophies').textContent = save.trophies;
+  $('gold').textContent = save.gold;
+  $('lvl').textContent = 1 + Math.floor(save.wins / 3);
+  const ai_ = Math.min(ARENAS.length - 1, Math.floor(save.trophies / 300));
+  $('arenaName').innerHTML = `ARÈNE ${ai_ + 1}<b>${ARENAS[ai_]}</b>`;
+  $('record').textContent = `Victoires ${save.wins} · Défaites ${save.losses}`;
+
+  // Aperçu du deck (onglet JOUER)
+  const mini = $('deckMini');
+  mini.innerHTML = '';
+  save.deck.forEach(id => mini.appendChild(cardEl(id)));
+
+  // Onglet DECK
+  const avg = save.deck.reduce((s, id) => s + CARDS[id].cost, 0) / 8;
+  $('avgCost').textContent = `Coût moyen : ${avg.toFixed(1)} 💧`;
+
+  const dg = $('deckGrid');
+  dg.innerHTML = '';
+  save.deck.forEach((id, i) => {
+    const el = cardEl(id, swapping ? 'wiggle' : (infoCard && infoCard.id === id ? 'picked' : ''));
+    el.addEventListener('click', () => {
+      if (swapping) {
+        save.deck[i] = swapping;
+        infoCard = { id: swapping, from: 'deck' };
+        swapping = null;
+        persist();
+      } else {
+        infoCard = infoCard && infoCard.id === id ? null : { id, from: 'deck' };
+      }
+      renderMenu();
+    });
+    dg.appendChild(el);
+  });
+
+  const coll = ALL_CARDS.filter(id => !save.deck.includes(id));
+  const cg = $('collGrid');
+  cg.innerHTML = '';
+  cg.classList.toggle('empty', coll.length === 0);
+  $('collCount').textContent = `${coll.length} carte${coll.length > 1 ? 's' : ''} hors deck`;
+  coll.forEach(id => {
+    const el = cardEl(id, (swapping === id || (infoCard && infoCard.id === id)) ? 'picked' : '');
+    el.addEventListener('click', () => {
+      swapping = null;
+      infoCard = infoCard && infoCard.id === id ? null : { id, from: 'coll' };
+      renderMenu();
+    });
+    cg.appendChild(el);
+  });
+
+  // Panneau d'informations
+  const info = $('cardInfo');
+  if (swapping) {
+    const c = CARDS[swapping];
+    info.innerHTML = `<div class="head"><span>${c.icon} <b>${c.name}</b></span><button class="btn grey" id="btnCancel">Annuler</button></div>
+      <p class="hint" style="padding-top:.5em">👆 Touchez une carte du deck à remplacer</p>`;
+    $('btnCancel').onclick = () => { swapping = null; renderMenu(); };
+  } else if (infoCard) {
+    const c = CARDS[infoCard.id];
+    const btn = infoCard.from === 'coll' ? '<button class="btn green" id="btnUse">Utiliser</button>' : '';
+    info.innerHTML = `<div class="head"><span>${c.icon} <b>${c.name}</b><span class="rar r-${c.rarity}">${RARITY_FR[c.rarity]}</span></span>${btn}</div>
+      <p>${c.desc}</p>
+      <div class="stats">
+        <div><small>Points de vie</small>${c.hp}${c.count > 1 ? ' ×' + c.count : ''}</div>
+        <div><small>Dégâts</small>${c.dmg}${c.splash ? ' (zone)' : ''}</div>
+        <div><small>Coût</small>${c.cost} 💧</div>
+        <div><small>Portée</small>${c.ranged ? c.range : 'Mêlée'}</div>
+        <div><small>Vitesse</small>${speedLabel(c.speed)}</div>
+        <div><small>Cible</small>${c.targets === 'buildings' ? 'Bâtiments' : 'Tout'}</div>
+      </div>`;
+    if (infoCard.from === 'coll') $('btnUse').onclick = () => { swapping = infoCard.id; renderMenu(); };
+  } else {
+    info.innerHTML = '<div class="hint">Touchez une carte pour voir ses statistiques</div>';
+  }
+}
+
+/* =========================================================
+   CYCLE DE PARTIE
+   ========================================================= */
+function clearAll() {
+  units.forEach(u => { scene.remove(u.mesh); scene.remove(u.hpBar.group); });
+  towers.forEach(t => { scene.remove(t.mesh); scene.remove(t.hpBar.group); t.label.remove(); });
+  projectiles.forEach(p => scene.remove(p.mesh));
+  fx.forEach(f => scene.remove(f.mesh));
+  units = []; towers = []; projectiles = []; fx = [];
+}
+function buildTowers() {
+  for (const team of ['player', 'enemy']) {
+    const s = TEAM[team].side;
+    createTower(team, 'princess', -5.5, 10.8 * s);
+    createTower(team, 'princess', 5.5, 10.8 * s);
+    createTower(team, 'king', 0, 13.9 * s);
+  }
+}
+
+function startGame() {
+  clearAll();
+  buildTowers();
+  battleCamera();
+  elixir = 5;
+  const d = shuffle(save.deck);
+  hand = d.slice(0, 4);
+  queue = d.slice(4);
+  selected = null;
+  ai.deck = shuffle(ALL_CARDS).slice(0, 8);
+  Object.assign(ai, { elixir: 5, next: ai.deck[0], cd: 4 });
+  crowns = { player: 0, enemy: 0 };
+  timeLeft = MATCH_TIME;
+  renderHand();
+  selectCard(null);
+  $('overlay').classList.add('hidden');
+  gameEl.classList.remove('in-menu');
+  state = 'playing';
+}
+
+function endGame() {
+  if (state !== 'playing') return;
+  state = 'over';
+  selectCard(null);
+  let title, text, delta = 0, gold = 0;
+  if (crowns.player > crowns.enemy) {
+    title = '🏆 VICTOIRE !'; text = 'Bravo, vous avez écrasé l\'IA.'; delta = 30; gold = 50; save.wins++;
+  } else if (crowns.player < crowns.enemy) {
+    title = '💀 DÉFAITE'; text = 'L\'IA a eu le dessus cette fois.'; delta = -Math.min(25, save.trophies); save.losses++;
+  } else {
+    title = '🤝 ÉGALITÉ'; text = 'Aucun vainqueur à la fin du temps.'; gold = 10;
+  }
+  save.trophies += delta;
+  save.gold += gold;
+  persist();
+  setTimeout(() => {
+    $('ovTitle').textContent = title;
+    $('ovText').innerHTML = `${text}<br>👑 Vous ${crowns.player} – ${crowns.enemy} IA<br>
+      <span class="trophy">${delta >= 0 ? '+' : ''}${delta} 🏆</span>${gold ? ` &nbsp; <span class="trophy">+${gold} 🪙</span>` : ''}`;
+    $('overlay').classList.remove('hidden');
+  }, 900);
+}
+
+function showMenu() {
+  clearAll();
+  buildTowers();
+  state = 'menu';
+  $('overlay').classList.add('hidden');
+  gameEl.classList.add('in-menu');
+  setTab('play');
+}
+
+$('ovBtn').addEventListener('click', showMenu);
+$('btnBattle').addEventListener('click', startGame);
+
+/* =========================================================
+   BOUCLE PRINCIPALE
+   ========================================================= */
+const clock = new THREE.Clock();
+const _v = new THREE.Vector3();
+let elapsed = 0, menuAngle = 0;
+
+function syncVisuals(dt) {
+  const showBars = state !== 'menu';
+  for (const u of units) {
+    if (!u.alive) continue;
+    u.mesh.position.set(u.x, 0, u.z);
+    if (u.deploy > 0) {
+      const k = 1 - u.deploy;
+      u.body.position.y = Math.max(0, (0.4 - k) / 0.4) * 4;
+      u.body.scale.setScalar(0.5 + Math.min(1, k * 2) * 0.5);
+      u.mats.forEach(m => { m.transparent = true; m.opacity = 0.55; });
+    } else {
+      u.body.scale.setScalar(1);
+      u.body.position.y = u.walking ? Math.abs(Math.sin(elapsed * 10 + u.phase)) * 0.12 : 0;
+      if (u.type === 'valkyrie') {           // attaque tournoyante
+        u.body.rotation.y = u.lunge > 0 ? (1 - u.lunge / 0.25) * Math.PI * 2 : 0;
+        u.body.position.z = 0;
+      } else {
+        u.body.position.z = u.lunge > 0 ? Math.sin((u.lunge / 0.25) * Math.PI) * 0.3 : 0;
+      }
+      if (u.mats[0].transparent) u.mats.forEach(m => { m.transparent = false; m.opacity = 1; });
+    }
+    u.flash -= dt;
+    u.mats.forEach(m => m.emissive && m.emissive.setHex(u.flash > 0 ? 0x777777 : 0x000000));
+    u.hpBar.group.position.set(u.x, u.stats.barY, u.z);
+    u.hpBar.group.quaternion.copy(camera.quaternion);
+    u.hpBar.fg.scale.x = Math.max(0.001, u.hp / u.maxHp);
+  }
+  for (const t of towers) {
+    if (!t.alive) continue;
+    t.hpBar.group.visible = showBars;
+    t.flash -= dt;
+    t.mats.forEach(m => m.emissive && m.emissive.setHex(t.flash > 0 ? 0x553333 : (m.color.getHex() === 0xffcf3a ? 0x332200 : 0)));
+    t.hpBar.group.position.set(t.x, t.barY, t.z);
+    t.hpBar.group.quaternion.copy(camera.quaternion);
+    t.hpBar.fg.scale.x = Math.max(0.001, t.hp / t.maxHp);
+    if (showBars) {
+      _v.set(t.x, t.barY + 0.35, t.z).project(camera);
+      t.label.style.left = ((_v.x + 1) / 2 * 100) + '%';
+      t.label.style.top = ((1 - _v.y) / 2 * 100) + '%';
+      t.label.textContent = (t.type === 'king' && !t.active ? '💤 ' : '') + Math.ceil(t.hp);
+    }
+  }
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  elapsed += dt;
+  riverTex.offset.x += dt * 0.08;
+
+  if (state === 'menu') {
+    // Caméra qui tourne lentement autour de l'arène derrière le menu
+    menuAngle += dt * 0.12;
+    camera.position.set(Math.sin(menuAngle) * 28, 24, Math.cos(menuAngle) * 28);
+    camera.lookAt(0, 0, 0);
+  }
+
+  if (state === 'playing') {
+    timeLeft -= dt;
+    const rate = ELIXIR_RATE * (timeLeft <= 60 ? 2 : 1);
+    elixir = Math.min(10, elixir + rate * dt);
+    updateAI(dt, rate);
+    for (const u of units) if (u.alive) updateUnit(u, dt);
+    for (const t of towers) updateTower(t, dt);
+    resolveCollisions();
+    updateProjectiles(dt);
+    units = units.filter(u => u.alive);
+    if (selected !== null) for (const s of ['-1', '1']) zonePocket[s].visible = pocketOpen('player', +s);
+    if (timeLeft <= 0) { timeLeft = 0; endGame(); }
+    updateHUD();
+  }
+  updateFx(dt);
+  syncVisuals(dt);
+  renderer.render(scene, camera);
+}
+
+buildTowers();
+renderMenu();
+loop();
+})();
+</script>
+</body>
+</html>
